@@ -56,6 +56,7 @@ async function postJson(url, body) {
 async function main() {
   const mockPort = Number(getEnv("MOCK_PORT", "8787"));
   const addonPort = Number(getEnv("ADDON_PORT", "7000"));
+  const aiProvider = getEnv("AI_PROVIDER", "openai-compat");
 
   const mockBase = `http://127.0.0.1:${mockPort}`;
   const tmdbBase = `${mockBase}/3`;
@@ -67,6 +68,9 @@ async function main() {
     ENCRYPTION_KEY: getEnv("ENCRYPTION_KEY", "x".repeat(32)),
     TMDB_API_BASE: tmdbBase,
   };
+  if (aiProvider === "gemini") {
+    serverEnv.GEMINI_MOCK_BASE_URL = mockBase;
+  }
 
   console.log("Starting mock API server...");
   const mock = startProcess(
@@ -91,16 +95,28 @@ async function main() {
   try {
     await waitForHttpOk(`${addonBase}/aisearch/configure`, 30000);
 
-    console.log("Running /aisearch/validate (OpenAI-compatible, mocked)...");
+    console.log("Running /aisearch/validate (mocked)...");
     const validateUrl = `${addonBase}/aisearch/validate`;
-    const validateBody = {
-      AiProvider: "openai-compat",
-      OpenAICompatApiKey: "mock",
-      OpenAICompatModel: "mock",
-      OpenAICompatBaseUrl: mockBase,
-      AiTemperature: 0.2,
-      TmdbApiKey: "mock",
-    };
+    const validateBody = { AiProvider: aiProvider, AiTemperature: 0, TmdbApiKey: "mock" };
+    if (aiProvider === "openai-compat") {
+      validateBody.OpenAICompatApiKey = "mock";
+      validateBody.OpenAICompatModel = "mock";
+      validateBody.OpenAICompatBaseUrl = mockBase;
+    } else {
+      validateBody.GeminiApiKey = "mock";
+      validateBody.GeminiModel = "mock";
+    }
+
+    // Negative: invalid extra headers JSON should fail (OpenAI-compat only)
+    if (aiProvider === "openai-compat") {
+      console.log("Running /aisearch/validate negative case (invalid extra headers JSON)...");
+      const bad = { ...validateBody, OpenAICompatExtraHeaders: "{not-json}" };
+      const { res: badRes, json: badJson } = await postJson(validateUrl, bad);
+      assert(badRes.ok, `validate HTTP ${badRes.status}`);
+      assert(!badJson.ai, "expected ai=false for invalid extra headers");
+      assert(badJson.errors && badJson.errors.ai, "expected errors.ai for invalid extra headers");
+    }
+
     const { res: validateRes, json: validateJson } = await postJson(
       validateUrl,
       validateBody
@@ -108,24 +124,29 @@ async function main() {
     assert(validateRes.ok, `validate HTTP ${validateRes.status}`);
     assert(validateJson.tmdb === true, "tmdb validation should be true");
     assert(
-      !!(validateJson.ai || validateJson.openaiCompat),
-      "ai/openaiCompat validation should be true"
+      !!(validateJson.ai || validateJson.openaiCompat || validateJson.gemini),
+      "ai validation should be true"
     );
 
     console.log("Creating encrypted config via /aisearch/encrypt...");
     const encryptUrl = `${addonBase}/aisearch/encrypt`;
     const configData = {
-      AiProvider: "openai-compat",
-      OpenAICompatApiKey: "mock",
-      OpenAICompatModel: "mock",
-      OpenAICompatBaseUrl: mockBase,
+      AiProvider: aiProvider,
       TmdbApiKey: "mock",
       NumResults: 5,
       EnableAiCache: false,
       EnableHomepage: false,
       EnableSimilar: true,
-      AiTemperature: 0.2,
+      AiTemperature: 0,
     };
+    if (aiProvider === "openai-compat") {
+      configData.OpenAICompatApiKey = "mock";
+      configData.OpenAICompatModel = "mock";
+      configData.OpenAICompatBaseUrl = mockBase;
+    } else {
+      configData.GeminiApiKey = "mock";
+      configData.GeminiModel = "mock";
+    }
     const { res: encRes, json: encJson } = await postJson(encryptUrl, {
       configData,
       traktAuthData: null,
@@ -144,6 +165,14 @@ async function main() {
     assert(Array.isArray(catalogJson.metas), "catalog metas must be array");
     assert(catalogJson.metas.length > 0, "expected metas length > 0");
     assert(catalogJson.metas[0].id, "meta[0].id missing");
+
+    console.log("Running catalog request (no results scenario)...");
+    const noResultsUrl = `${addonBase}/aisearch/${configId}/catalog/movie/aisearch.top/search=NORESULTS_TEST.json`;
+    const noRes = await fetch(noResultsUrl, { headers: { Accept: "application/json" } });
+    const noJson = await noRes.json();
+    assert(noRes.ok, `noresults catalog HTTP ${noRes.status}`);
+    assert(Array.isArray(noJson.metas), "noresults metas must be array");
+    assert(noJson.metas.length > 0, "expected an error meta, not empty list");
 
     console.log("Running similar/meta request...");
     const similarUrl = `${addonBase}/aisearch/${configId}/meta/movie/ai-recs:tt0133093.json`;
@@ -166,4 +195,3 @@ main().catch((err) => {
   console.error(err && err.stack ? err.stack : err);
   process.exitCode = 1;
 });
-

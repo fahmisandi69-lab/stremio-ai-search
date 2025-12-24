@@ -132,6 +132,42 @@ function createAiTextGenerator(aiProviderConfig) {
       provider: "gemini",
       model: aiProviderConfig.model,
       async generateText(prompt) {
+        // Test hook: allow mocking Gemini through a local OpenAI-compatible endpoint.
+        // Only active when GEMINI_MOCK_BASE_URL is set.
+        const mockBaseUrl = (process.env.GEMINI_MOCK_BASE_URL || "").trim();
+        if (mockBaseUrl) {
+          if (!fetch) {
+            throw new Error(
+              "Fetch API is not available (need Node 18+ or install node-fetch)"
+            );
+          }
+          const url = getOpenAIChatCompletionsUrl(mockBaseUrl);
+          const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: "Bearer mock" },
+            body: JSON.stringify({
+              model: "mock",
+              messages: [{ role: "user", content: prompt }],
+              temperature:
+                typeof aiProviderConfig.temperature === "number"
+                  ? aiProviderConfig.temperature
+                  : 0.2,
+              max_tokens: 800,
+            }),
+          });
+          if (!response.ok) {
+            const errorText = await response.text().catch(() => "");
+            const error = new Error(
+              `Gemini mock API error (Status: ${response.status})${errorText ? `: ${errorText}` : ""}`
+            );
+            error.status = response.status;
+            throw error;
+          }
+          const data = await response.json();
+          const content = data?.choices?.[0]?.message?.content ?? "";
+          return String(content).trim();
+        }
+
         const { GoogleGenerativeAI } = require("@google/generative-ai");
         const genAI = new GoogleGenerativeAI(aiProviderConfig.apiKey);
         const model = genAI.getGenerativeModel({

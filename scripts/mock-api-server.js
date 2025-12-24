@@ -93,22 +93,33 @@ function makeSearchResults(kind, query) {
 function buildChatCompletions(prompt) {
   const p = String(prompt || "").toLowerCase();
   const wantsSeries = p.includes("series recommendation expert");
+  const wantsNoResults = p.includes("noresults_test");
 
   const lines = wantsSeries
-    ? [
-        "series|Breaking Bad|2008",
-        "series|Mock Series One|2011",
-        "series|Mock Series Two|2012",
-        "series|Mock Series Three|2013",
-        "series|Mock Series Four|2014",
-      ]
-    : [
-        "movie|The Matrix|1999",
-        "movie|Inception|2010",
-        "movie|Mock Movie One|2001",
-        "movie|Mock Movie Two|2002",
-        "movie|Mock Movie Three|2003",
-      ];
+    ? wantsNoResults
+      ? [
+          "series|Nonexistent Series Alpha|2011",
+          "series|Nonexistent Series Beta|2012",
+        ]
+      : [
+          "series|Breaking Bad|2008",
+          "series|Mock Series One|2011",
+          "series|Mock Series Two|2012",
+          "series|Mock Series Three|2013",
+          "series|Mock Series Four|2014",
+        ]
+    : wantsNoResults
+      ? [
+          "movie|Nonexistent Movie Alpha|2001",
+          "movie|Nonexistent Movie Beta|2002",
+        ]
+      : [
+          "movie|The Matrix|1999",
+          "movie|Inception|2010",
+          "movie|Mock Movie One|2001",
+          "movie|Mock Movie Two|2002",
+          "movie|Mock Movie Three|2003",
+        ];
 
   return {
     id: "chatcmpl_mock",
@@ -145,10 +156,16 @@ const server = http.createServer(async (req, res) => {
     // TMDB: /3/search/movie or /3/search/tv
     if (req.method === "GET" && url.pathname === "/3/search/movie") {
       const query = getQueryParam(url, "query");
+      if (String(query || "").toLowerCase().includes("nonexistent")) {
+        return sendJson(res, 200, { results: [] });
+      }
       return sendJson(res, 200, { results: makeSearchResults("movie", query) });
     }
     if (req.method === "GET" && url.pathname === "/3/search/tv") {
       const query = getQueryParam(url, "query");
+      if (String(query || "").toLowerCase().includes("nonexistent")) {
+        return sendJson(res, 200, { results: [] });
+      }
       return sendJson(res, 200, { results: makeSearchResults("tv", query) });
     }
 
@@ -192,9 +209,8 @@ const server = http.createServer(async (req, res) => {
 });
 
 const port = Number(process.env.MOCK_PORT) || 8787;
-server.listen(port, () => {
+server.listen(port, "127.0.0.1", () => {
   console.log(`Mock API server listening on http://127.0.0.1:${port}`);
   console.log(`- OpenAI compat: POST /v1/chat/completions`);
   console.log(`- TMDB: GET /3/configuration, /3/search/movie, /3/search/tv, /3/movie/:id, /3/tv/:id, /3/find/:imdbId`);
 });
-

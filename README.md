@@ -70,6 +70,11 @@ Smoke validate against the running addon (OpenAI-compatible):
 Runs the mock API server + addon server, then exercises `/validate`, a catalog query, and a similar/meta request:
 - `npm run smoke:all:mock`
 
+Gemini provider (mocked through the same local OpenAI-compatible mock endpoint):
+- `npm run smoke:all:mock:gemini`
+
+Note: smoke scripts require dependencies installed (`npm install`) and the ability to bind to local ports.
+
 ## Customizing Your Homepage
 
 One of the most powerful features of this addon is the ability to create your own recommendation rows directly on the Stremio homepage. In the "Custom Homepage Catalogs" field within the addon's advanced settings, you can define multiple, comma-separated catalogs.

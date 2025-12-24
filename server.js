@@ -12,7 +12,8 @@ process.on("warning", (warning) => {
 try {
   require("dotenv").config();
 } catch (error) {
-  logger.warn("dotenv module not found, continuing without .env file support");
+  // logger isn't initialized yet at this point.
+  console.warn("dotenv module not found, continuing without .env file support");
 }
 
 const { serveHTTP } = require("stremio-addon-sdk");
@@ -299,7 +300,7 @@ if (ENABLE_LOGGING) {
   logger.info("Logging enabled via ENABLE_LOGGING environment variable");
 }
 
-const PORT = 7000;
+const PORT = Number(process.env.PORT) || 7000;
 const HOST = process.env.HOST
   ? `https://${process.env.HOST}`
   : "https://stremio.itcon.au";
