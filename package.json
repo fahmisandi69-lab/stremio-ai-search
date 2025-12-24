@@ -10,7 +10,8 @@
     "smoke:validate": "node scripts/smoke-validate.js",
     "mock:api": "node scripts/mock-api-server.js",
     "smoke:catalog": "node scripts/smoke-catalog.js",
-    "smoke:similar": "node scripts/smoke-similar.js"
+    "smoke:similar": "node scripts/smoke-similar.js",
+    "smoke:all:mock": "node scripts/smoke-all-mock.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

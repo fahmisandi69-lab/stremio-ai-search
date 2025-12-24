@@ -66,6 +66,10 @@ Then run the addon server pointing TMDB + OpenAI-compat at the mock:
 Smoke validate against the running addon (OpenAI-compatible):
 - `BASE_URL=http://127.0.0.1:7000 AI_PROVIDER=openai-compat OPENAI_COMPAT_API_KEY=mock OPENAI_COMPAT_MODEL=mock OPENAI_COMPAT_BASE_URL=http://127.0.0.1:8787 TMDB_API_KEY=mock npm run smoke:validate`
 
+### One-command smoke (mocked)
+Runs the mock API server + addon server, then exercises `/validate`, a catalog query, and a similar/meta request:
+- `npm run smoke:all:mock`
+
 ## Customizing Your Homepage
 
 One of the most powerful features of this addon is the ability to create your own recommendation rows directly on the Stremio homepage. In the "Custom Homepage Catalogs" field within the addon's advanced settings, you can define multiple, comma-separated catalogs.
