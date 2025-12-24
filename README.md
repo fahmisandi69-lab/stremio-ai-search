@@ -88,12 +88,15 @@ This is intended for **self-hosted** deployments only. For safety, MCP is disabl
 Environment variables:
 - `MCP_ENABLED=true` to enable MCP augmentation
 - `MCP_ALLOW_SPAWN=true` to allow spawning an MCP server process (required)
+- `MCP_SERVERS_JSON` JSON array of MCP servers to run (preferred; supports multiple). Example:
+  - `[{"id":"web","cmd":"npx","args":["-y","@modelcontextprotocol/server-foo"],"timeoutMs":5000,"toolCalls":[{"name":"web.search","args":{"query":"{{query}}","limit":5}}]}]`
+- `MCP_TIMEOUT_MS` default tool/connect timeout in ms (default 5000)
+- `MCP_MAX_CONTEXT_CHARS` max chars injected into prompt (default 8000)
+
+Legacy single-server env vars (used only if `MCP_SERVERS_JSON` is not set):
 - `MCP_SERVER_CMD` command to run the MCP server (e.g. `npx`)
 - `MCP_SERVER_ARGS` JSON array of args (e.g. `["-y","@modelcontextprotocol/server-foo"]`)
-- `MCP_TOOL_CALLS` JSON array describing tools to call per query, supports `{{query}}` and `{{type}}` templates, e.g.:
-  - `[{"name":"web.search","args":{"query":"{{query}}","limit":5}}]`
-- `MCP_TIMEOUT_MS` tool/connect timeout in ms (default 5000)
-- `MCP_MAX_CONTEXT_CHARS` max chars injected into prompt (default 8000)
+- `MCP_TOOL_CALLS` JSON array describing tools to call per query, supports `{{query}}` and `{{type}}` templates
 
 When enabled, MCP tool results are appended to the model prompt under `MCP CONTEXT (JSON)`.
 
