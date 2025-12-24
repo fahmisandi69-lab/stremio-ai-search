@@ -12,7 +12,8 @@ process.on("warning", (warning) => {
 try {
   require("dotenv").config();
 } catch (error) {
-  logger.warn("dotenv module not found, continuing without .env file support");
+  // logger isn't initialized yet at this point.
+  console.warn("dotenv module not found, continuing without .env file support");
 }
 
 const { serveHTTP } = require("stremio-addon-sdk");
@@ -299,11 +300,16 @@ if (ENABLE_LOGGING) {
   logger.info("Logging enabled via ENABLE_LOGGING environment variable");
 }
 
-const PORT = 7000;
+const PORT = Number(process.env.PORT) || 7000;
 const HOST = process.env.HOST
   ? `https://${process.env.HOST}`
   : "https://stremio.itcon.au";
 const BASE_PATH = "/aisearch";
+const TMDB_API_BASE =
+  (process.env.TMDB_API_BASE || "https://api.themoviedb.org/3").replace(
+    /\/+$/,
+    ""
+  );
 
 const DEFAULT_RPDB_KEY = process.env.RPDB_API_KEY;
 const TRAKT_CLIENT_ID = process.env.TRAKT_CLIENT_ID;
@@ -1552,7 +1558,7 @@ app.post(["/validate", "/aisearch/validate"], express.json(), async (req, res) =
     if (TmdbApiKey) {
       validations.push((async () => {
         try {
-          const tmdbUrl = `https://api.themoviedb.org/3/configuration?api_key=${TmdbApiKey}`;
+          const tmdbUrl = `${TMDB_API_BASE}/configuration?api_key=${TmdbApiKey}`;
           const tmdbResponse = await fetch(tmdbUrl);
           if (tmdbResponse.ok) {
             validationResults.tmdb = true;
