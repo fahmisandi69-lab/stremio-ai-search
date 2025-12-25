@@ -44,6 +44,9 @@ pnpm install
 pnpm test
 ```
 
+To force the legacy (non-TanStack) HTTP clients for local testing:
+`AI_USE_TANSTACK=false`
+
 ## AI Provider Setup
 
 In the configuration page you can choose an AI provider:

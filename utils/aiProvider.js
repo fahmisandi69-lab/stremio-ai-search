@@ -69,24 +69,37 @@ function isModuleNotFound(error) {
   );
 }
 
+function isTanstackEnabled() {
+  const raw = String(process.env.AI_USE_TANSTACK || "").trim().toLowerCase();
+  if (!raw) return true;
+  return raw !== "false" && raw !== "0" && raw !== "no";
+}
+
 let cachedTanstackModules = null;
 async function loadTanstackModules() {
   if (cachedTanstackModules) return cachedTanstackModules;
+  if (!isTanstackEnabled()) return null;
 
   try {
     const aiCore = await import("@tanstack/ai");
-    const openaiAdapters = await import("@tanstack/ai-openai/adapters");
-    const geminiAdapters = await import("@tanstack/ai-gemini/adapters");
+    const openaiAdapters = await import("@tanstack/ai-openai");
+    const geminiAdapters = await import("@tanstack/ai-gemini");
 
-    const generate = aiCore.generate || (aiCore.default && aiCore.default.generate);
-    const openaiText = openaiAdapters.openaiText || (openaiAdapters.default && openaiAdapters.default.openaiText);
-    const geminiText = geminiAdapters.geminiText || (geminiAdapters.default && geminiAdapters.default.geminiText);
+    const chat = aiCore.chat || (aiCore.default && aiCore.default.chat);
+    const streamToText =
+      aiCore.streamToText || (aiCore.default && aiCore.default.streamToText);
+    const createOpenaiChat =
+      openaiAdapters.createOpenaiChat ||
+      (openaiAdapters.default && openaiAdapters.default.createOpenaiChat);
+    const createGeminiChat =
+      geminiAdapters.createGeminiChat ||
+      (geminiAdapters.default && geminiAdapters.default.createGeminiChat);
 
-    if (!generate || !openaiText || !geminiText) {
+    if (!chat || !streamToText || !createOpenaiChat || !createGeminiChat) {
       throw new Error("TanStack AI adapters missing expected exports");
     }
 
-    cachedTanstackModules = { generate, openaiText, geminiText };
+    cachedTanstackModules = { chat, streamToText, createOpenaiChat, createGeminiChat };
     return cachedTanstackModules;
   } catch (error) {
     if (isModuleNotFound(error)) {
@@ -117,31 +130,33 @@ async function generateWithTanstackAi({
   timeoutMs,
 }) {
   const modules = await loadTanstackModules();
-  if (!modules || !modules.generate) throw new Error("TanStack AI is not available");
-  const { generate } = modules;
+  if (!modules || !modules.chat || !modules.streamToText) {
+    throw new Error("TanStack AI is not available");
+  }
+  const { chat, streamToText } = modules;
 
   const run = async () => {
-    const result = generate({
+    const stream = chat({
       adapter,
       model,
       messages: [{ role: "user", content: [{ type: "text", content: prompt }] }],
       temperature: typeof temperature === "number" ? temperature : undefined,
     });
 
+    if (stream && typeof streamToText === "function") {
+      const text = await streamToText(stream);
+      return String(text || "").trim();
+    }
+
     let text = "";
-    if (result && typeof result[Symbol.asyncIterator] === "function") {
-      for await (const chunk of result) {
+    if (stream && typeof stream[Symbol.asyncIterator] === "function") {
+      for await (const chunk of stream) {
         text += extractChunkText(chunk);
       }
       return text.trim();
     }
 
-    if (typeof result === "string") return result.trim();
-    if (result && typeof result.text === "function") {
-      const resolved = await result.text();
-      return String(resolved || "").trim();
-    }
-    return String(result || "").trim();
+    return String(stream || "").trim();
   };
 
   if (typeof timeoutMs === "number" && timeoutMs > 0) {
@@ -259,9 +274,11 @@ function createAiTextGenerator(aiProviderConfig) {
 
         const tanstack = await loadTanstackModules();
         if (tanstack) {
-          const adapter = tanstack.geminiText({
-            apiKey: aiProviderConfig.apiKey,
-          });
+          const adapter = tanstack.createGeminiChat(
+            aiProviderConfig.model,
+            aiProviderConfig.apiKey,
+            {}
+          );
           return await generateWithTanstackAi({
             adapter,
             model: aiProviderConfig.model,
@@ -303,12 +320,15 @@ function createAiTextGenerator(aiProviderConfig) {
 
         const tanstack = await loadTanstackModules();
         if (tanstack) {
-          const adapter = tanstack.openaiText({
-            apiKey: aiProviderConfig.apiKey,
-            baseUrl: aiProviderConfig.baseUrl,
-            baseURL: aiProviderConfig.baseUrl,
-            headers: buildExtraHeaders(extraHeadersObj),
-          });
+          const adapter = tanstack.createOpenaiChat(
+            aiProviderConfig.model,
+            aiProviderConfig.apiKey,
+            {
+              baseUrl: aiProviderConfig.baseUrl || undefined,
+              baseURL: aiProviderConfig.baseUrl || undefined,
+              headers: buildExtraHeaders(extraHeadersObj),
+            }
+          );
           return await generateWithTanstackAi({
             adapter,
             model: aiProviderConfig.model,
