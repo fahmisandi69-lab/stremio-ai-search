@@ -179,6 +179,36 @@ async function testMultipleServersErrorIsolation() {
   else process.env.MCP_ENABLED = prevEnabled;
 }
 
+async function testMcpContextTruncation() {
+  const prevEnabled = process.env.MCP_ENABLED;
+  const prevMax = process.env.MCP_MAX_CONTEXT_CHARS;
+  process.env.MCP_ENABLED = "true";
+  process.env.MCP_MAX_CONTEXT_CHARS = "50";
+
+  const servers = [
+    {
+      id: "s1",
+      enabled: true,
+      toolCalls: [{ name: "t1", args: { q: "{{query}}" } }],
+    },
+  ];
+
+  const ctx = await getMcpContext(
+    { query: "hello", type: "movie" },
+    {
+      servers,
+      toolRunner: async () => ({ ok: true, big: "x".repeat(200) }),
+    }
+  );
+
+  assert.ok(ctx.endsWith("...truncated"));
+
+  if (prevEnabled === undefined) delete process.env.MCP_ENABLED;
+  else process.env.MCP_ENABLED = prevEnabled;
+  if (prevMax === undefined) delete process.env.MCP_MAX_CONTEXT_CHARS;
+  else process.env.MCP_MAX_CONTEXT_CHARS = prevMax;
+}
+
 module.exports.run = async function run() {
   await testTemplateSubstitution();
   await testMcpDisabledNoContext();
@@ -186,5 +216,6 @@ module.exports.run = async function run() {
   await testMcpServersObjectParsing();
   await testMultipleServersContextUsesTemplates();
   await testMultipleServersErrorIsolation();
+  await testMcpContextTruncation();
   await testInvalidServersJsonDisablesContext();
 };

@@ -322,6 +322,31 @@ async function testGeminiMockBaseUrlUsesOpenAICompat() {
   });
 }
 
+async function testTanstackOpenAICompatAdapterConfig() {
+  await withEnv("AI_USE_TANSTACK", "true", async () => {
+    await withEnv("AI_TANSTACK_MODULES_PATH", "tests/fixtures/tanstack-mock-config.mjs", async () => {
+      const { fetch } = createCapturingFetch();
+      const aiProvider = freshRequireAiProviderWithFetch(fetch);
+      const config = aiProvider.getAiProviderConfigFromConfig({
+        AiProvider: "openai-compat",
+        OpenAICompatApiKey: "sk-test",
+        OpenAICompatBaseUrl: "https://openrouter.ai/api",
+        OpenAICompatModel: "openai/gpt-4o-mini",
+        OpenAICompatExtraHeaders: '{"HTTP-Referer":"https://example.com","X-Title":"Stremio AI Search"}',
+      });
+      const client = aiProvider.createAiTextGenerator(config);
+      const text = await client.generateText("hello");
+      const payload = JSON.parse(text);
+      assert.equal(payload.kind, "openai");
+      assert.equal(payload.model, "openai/gpt-4o-mini");
+      assert.equal(payload.adapterModel, "openai/gpt-4o-mini");
+      assert.equal(payload.baseUrl, "https://openrouter.ai/api");
+      assert.equal(payload.headers["HTTP-Referer"], "https://example.com");
+      assert.equal(payload.headers["X-Title"], "Stremio AI Search");
+    });
+  });
+}
+
 module.exports.run = async function run() {
   await testChatCompletionsUrl();
   await testTemperatureClamping();
@@ -333,4 +358,5 @@ module.exports.run = async function run() {
   await testTanstackOpenAICompatMock();
   await testTanstackGeminiMock();
   await testGeminiMockBaseUrlUsesOpenAICompat();
+  await testTanstackOpenAICompatAdapterConfig();
 };

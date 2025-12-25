@@ -1,6 +1,7 @@
 const assert = require("assert");
 
 const { validateAiProvider, validateTmdbApiKey } = require("../utils/validate");
+const path = require("path");
 
 async function testValidateAiProviderGeminiSuccess() {
   const res = await validateAiProvider(
@@ -76,6 +77,39 @@ async function testValidateAiProviderPropagatesError() {
   assert.ok(res.errors.ai.includes("Invalid AI provider API key:"));
 }
 
+async function testValidateAiProviderTanstackError() {
+  const prevUse = process.env.AI_USE_TANSTACK;
+  const prevPath = process.env.AI_TANSTACK_MODULES_PATH;
+  process.env.AI_USE_TANSTACK = "true";
+  process.env.AI_TANSTACK_MODULES_PATH = path.join(
+    process.cwd(),
+    "tests",
+    "fixtures",
+    "tanstack-mock-error.mjs"
+  );
+
+  const validatePath = path.join(process.cwd(), "utils", "validate.js");
+  const aiProviderPath = path.join(process.cwd(), "utils", "aiProvider.js");
+  delete require.cache[require.resolve(validatePath)];
+  delete require.cache[require.resolve(aiProviderPath)];
+  const { validateAiProvider: validateAiProviderFresh } = require(validatePath);
+
+  const res = await validateAiProviderFresh({
+    AiProvider: "openai-compat",
+    OpenAICompatApiKey: "k",
+    OpenAICompatModel: "m",
+  });
+
+  if (prevUse === undefined) delete process.env.AI_USE_TANSTACK;
+  else process.env.AI_USE_TANSTACK = prevUse;
+  if (prevPath === undefined) delete process.env.AI_TANSTACK_MODULES_PATH;
+  else process.env.AI_TANSTACK_MODULES_PATH = prevPath;
+
+  if (!res.errors.ai || !res.errors.ai.includes("tanstack stream failure")) {
+    throw new Error(`Expected TanStack error, got: ${res.errors.ai}`);
+  }
+}
+
 async function testValidateTmdbApiKeySuccess() {
   const tmdb = await validateTmdbApiKey("k", {
     fetch: async () => ({ ok: true, status: 200 }),
@@ -103,8 +137,8 @@ module.exports.run = async function run() {
   await testValidateAiProviderOpenAICompatSuccess();
   await testValidateAiProviderMissingKeyMessages();
   await testValidateAiProviderPropagatesError();
+  await testValidateAiProviderTanstackError();
   await testValidateTmdbApiKeySuccess();
   await testValidateTmdbApiKeyFailureStatus();
   await testValidateTmdbApiKeyMissing();
 };
-
