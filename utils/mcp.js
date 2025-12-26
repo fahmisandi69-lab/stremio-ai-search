@@ -1,4 +1,3 @@
-const { spawn } = require("child_process");
 const logger = require("./logger");
 
 function parseJsonEnv(name, fallback) {
@@ -121,23 +120,15 @@ async function startMcpClient(server) {
 
   const timeoutMs = Number(server.timeoutMs || 5000);
 
-  const child = spawn(cmd, args, {
-    stdio: ["pipe", "pipe", "pipe"],
-    env: { ...process.env, ...(server.env || {}) },
-  });
-
-  child.on("exit", (code, signal) => {
-    logger.warn("MCP server exited", { serverId: server.id, code, signal });
-  });
-
   // MCP SDK is ESM-first; use subpath exports that provide CJS entry points.
   const { Client } = require("@modelcontextprotocol/sdk/client");
   const { StdioClientTransport } = require("@modelcontextprotocol/sdk/client/stdio.js");
 
   const transport = new StdioClientTransport({
-    stdin: child.stdin,
-    stdout: child.stdout,
-    stderr: child.stderr,
+    command: cmd,
+    args,
+    env: server.env ? { ...process.env, ...server.env } : { ...process.env },
+    stderr: "inherit",
   });
 
   const client = new Client(
@@ -146,7 +137,7 @@ async function startMcpClient(server) {
   );
 
   await withTimeout(client.connect(transport), timeoutMs, `MCP connect timed out: ${server.id}`);
-  return { client, child, timeoutMs };
+  return { client, transport, timeoutMs };
 }
 
 function withTimeout(promise, timeoutMs, message) {
