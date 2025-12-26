@@ -71,6 +71,7 @@ In the configuration page you can choose an AI provider:
 
 Advanced option:
 - **AI Temperature**: controls randomness (lower is more deterministic; default `0.2`)
+- **Export / Import**: use the JSON box in Advanced Options to copy settings between devices or restore a saved configuration.
 
 ## Testing (Optional)
 
@@ -573,6 +574,13 @@ When self-hosting the addon, you can configure the following environment variabl
 - `GITHUB_TOKEN` - GitHub token for issue submission
 - `RECAPTCHA_SECRET_KEY` - Secret key for reCAPTCHA
 - `ADMIN_TOKEN` - Token required for accessing cache management endpoints (new)
+- `RATE_LIMIT_ENABLED` - Set to "false" to disable request rate limiting (default: true)
+- `RATE_LIMIT_WINDOW_MS` - Rate limit window in ms (default: 60000)
+- `RATE_LIMIT_MAX` - Max requests per window (default: 120)
+- `RATE_LIMIT_TRUST_LOCAL` - Set to "false" to apply limits to localhost too (default: true)
+- `AI_RETRY_ATTEMPTS` - AI request retries before failing (default: 2)
+- `AI_RETRY_BASE_MS` - AI retry backoff base delay (default: 500)
+- `AI_RETRY_MAX_MS` - AI retry backoff max delay (default: 5000)
 
 ### Admin Endpoints
 

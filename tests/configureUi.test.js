@@ -181,8 +181,55 @@ async function testGetAddonUrlSerializesConfigCorrectlyGemini() {
   dom.window.close();
 }
 
+async function testConfigExportImport() {
+  const dom = loadConfigureHtml();
+  const { window } = dom;
+  const { document } = window;
+
+  await flushMicrotasks();
+  document.dispatchEvent(new window.Event("DOMContentLoaded"));
+  await flushMicrotasks();
+
+  document.getElementById("aiProvider").value = "openai-compat";
+  document.getElementById("aiProvider").dispatchEvent(new window.Event("change"));
+  document.getElementById("openaiCompatApiKey").value = "sk-test-export";
+  document.getElementById("openaiCompatModel").value = "openai/gpt-4o-mini";
+  document.getElementById("tmdbKey").value = "tmdb-export-key";
+  document.getElementById("aiTemperature").value = "0.9";
+
+  document.getElementById("exportConfigBtn").click();
+  const exported = document.getElementById("configJson").value;
+  assert(exported, "Expected export to populate configJson");
+
+  const parsed = JSON.parse(exported);
+  assert.equal(parsed.AiProvider, "openai-compat");
+  assert.equal(parsed.OpenAICompatModel, "openai/gpt-4o-mini");
+  assert.equal(parsed.TmdbApiKey, "tmdb-export-key");
+  assert.equal(parsed.AiTemperature, 0.9);
+
+  const importPayload = {
+    AiProvider: "gemini",
+    GeminiApiKey: "gemini-import-key",
+    GeminiModel: "gemini-2.5-flash-lite",
+    TmdbApiKey: "tmdb-import-key",
+    AiTemperature: 0.1,
+  };
+  document.getElementById("configJson").value = JSON.stringify(importPayload);
+  document.getElementById("importConfigBtn").click();
+  await flushMicrotasks();
+
+  assert.equal(document.getElementById("aiProvider").value, "gemini");
+  assert.equal(document.getElementById("geminiKey").value, "gemini-import-key");
+  assert.equal(document.getElementById("geminiModel").value, "gemini-2.5-flash-lite");
+  assert.equal(document.getElementById("tmdbKey").value, "tmdb-import-key");
+  assert.equal(document.getElementById("aiTemperature").value, "0.1");
+
+  dom.window.close();
+}
+
 module.exports.run = async function run() {
   await testProviderToggleShowsRightFields();
   await testGetAddonUrlSerializesConfigCorrectlyOpenAICompat();
   await testGetAddonUrlSerializesConfigCorrectlyGemini();
+  await testConfigExportImport();
 };

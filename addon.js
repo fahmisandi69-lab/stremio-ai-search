@@ -3936,6 +3936,15 @@ const catalogHandler = async function (args, req) {
       const isRateLimit =
         status === 429 ||
         (typeof error.message === "string" && /quota|rate limit/i.test(error.message));
+      const isTimeout =
+        status === 504 ||
+        (typeof error.message === "string" && /timed out|timeout/i.test(error.message));
+      const isNetworkError =
+        typeof error.message === "string" &&
+        /(enotfound|econnrefused|econnreset|network error|fetch failed)/i.test(
+          error.message
+        );
+      const isServerError = status >= 500 && status < 600;
       const isNotFound =
         status === 404 || (typeof error.message === "string" && /not found/i.test(error.message));
 
@@ -3949,6 +3958,15 @@ const catalogHandler = async function (args, req) {
           provider === "openai-compat"
             ? "You have exceeded your OpenAI-compatible provider quota/rate limit. Please check your provider account."
             : "You have exceeded your Gemini API quota for the day. Please check your Google AI Studio account.";
+      } else if (isTimeout) {
+        errorMessage =
+          "The AI provider timed out while responding. Please try again in a moment.";
+      } else if (isNetworkError) {
+        errorMessage =
+          "Could not reach the AI provider. Please check your server network and provider base URL.";
+      } else if (isServerError) {
+        errorMessage =
+          "The AI provider encountered a server error. Please try again later.";
       } else if (isNotFound) {
         errorMessage =
           provider === "openai-compat"

@@ -21,6 +21,7 @@ const { addonInterface, catalogHandler, determineIntentFromKeywords } = require(
 const express = require("express");
 const compression = require("compression");
 const rateLimit = require("express-rate-limit");
+const { getNumberEnv, isTruthyValue } = require("./utils/env");
 const fs = require("fs");
 const path = require("path");
 const logger = require("./utils/logger");
@@ -497,6 +498,38 @@ async function startServer() {
     });
 
     const addonRouter = require("express").Router();
+    const rateLimitEnabled =
+      process.env.RATE_LIMIT_ENABLED === undefined
+        ? true
+        : isTruthyValue(process.env.RATE_LIMIT_ENABLED);
+    if (rateLimitEnabled) {
+      const windowMs = getNumberEnv("RATE_LIMIT_WINDOW_MS", 60 * 1000);
+      const max = getNumberEnv("RATE_LIMIT_MAX", 120);
+      const trustLocal =
+        process.env.RATE_LIMIT_TRUST_LOCAL === undefined
+          ? true
+          : isTruthyValue(process.env.RATE_LIMIT_TRUST_LOCAL);
+
+      const isLocalRequest = (req) => {
+        const ip = req.ip || req.connection?.remoteAddress || "";
+        return (
+          ip === "127.0.0.1" ||
+          ip === "::1" ||
+          ip.startsWith("::ffff:127.") ||
+          ip === "::ffff:127.0.0.1"
+        );
+      };
+
+      const addonRateLimiter = rateLimit({
+        windowMs,
+        max,
+        standardHeaders: true,
+        legacyHeaders: false,
+        skip: (req) => trustLocal && isLocalRequest(req),
+        message: { error: "Too many requests, please slow down." },
+      });
+      addonRouter.use(addonRateLimiter);
+    }
     const routeHandlers = {
       manifest: (req, res, next) => {
         next();
