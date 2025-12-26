@@ -21,6 +21,7 @@ const { addonInterface, catalogHandler, determineIntentFromKeywords } = require(
 const express = require("express");
 const compression = require("compression");
 const { applyAddonRateLimit } = require("./server/middleware/rateLimit");
+const { registerCacheRoutes } = require("./server/routes/cache");
 const logger = require("./utils/logger");
 const fetch = require("./utils/fetch");
 const { handleIssueSubmission } = require("./utils/issueHandler");
@@ -776,14 +777,12 @@ async function startServer() {
         }
       });
 
-      addonRouter.get(
-        routePath + "cache/stats",
+      registerCacheRoutes({
+        router: addonRouter,
+        routePath,
         validateAdminToken,
-        (req, res) => {
-          const { getCacheStats } = require("./addon");
-          res.json(getCacheStats());
-        }
-      );
+        saveCachesToFiles,
+      });
 
       // API endpoint to decrypt configuration
       addonRouter.post(routePath + "api/decrypt-config", (req, res) => {
@@ -817,204 +816,6 @@ async function startServer() {
           res.status(500).json({ error: "Internal server error" });
         }
       });
-
-      addonRouter.get(
-        routePath + "cache/clear/tmdb",
-        validateAdminToken,
-        (req, res) => {
-          const { clearTmdbCache } = require("./addon");
-          res.json(clearTmdbCache());
-        }
-      );
-
-      addonRouter.get(
-        routePath + "cache/clear/tmdb-details",
-        validateAdminToken,
-        (req, res) => {
-          const { clearTmdbDetailsCache } = require("./addon");
-          res.json(clearTmdbDetailsCache());
-        }
-      );
-
-      addonRouter.get(
-        routePath + "cache/clear/tmdb-discover",
-        validateAdminToken,
-        (req, res) => {
-          const { clearTmdbDiscoverCache } = require("./addon");
-          res.json(clearTmdbDiscoverCache());
-        }
-      );
-
-      addonRouter.get(
-        routePath + "cache/clear/ai",
-        validateAdminToken,
-        (req, res) => {
-          const { clearAiCache } = require("./addon");
-          res.json(clearAiCache());
-        }
-      );
-
-      addonRouter.get(
-        routePath + "cache/clear/ai/keywords",
-        validateAdminToken,
-        (req, res) => {
-          try {
-            const keywords = req.query.keywords;
-            if (!keywords || typeof keywords !== "string") {
-              return res.status(400).json({
-                error: "Keywords parameter is required and must be a string",
-              });
-            }
-
-            const { removeAiCacheByKeywords } = require("./addon");
-            const result = removeAiCacheByKeywords(keywords);
-
-            if (!result) {
-              return res
-                .status(500)
-                .json({ error: "Failed to remove cache entries" });
-            }
-
-            res.json(result);
-          } catch (error) {
-            logger.error("Error in cache/clear/ai/keywords endpoint:", {
-              error: error.message,
-              stack: error.stack,
-              keywords: req.query.keywords,
-            });
-            res.status(500).json({
-              error: "Internal server error",
-              message: error.message,
-            });
-          }
-        }
-      );
-
-      addonRouter.get(
-        routePath + "cache/purge/ai-empty",
-        validateAdminToken,
-        (req, res) => {
-          try {
-            const { purgeEmptyAiCacheEntries } = require("./addon");
-            const stats = purgeEmptyAiCacheEntries();
-            res.json({
-              message: "Purge of empty AI cache entries completed.",
-              ...stats
-            });
-          } catch (error) {
-            logger.error("Error in cache/purge/ai-empty endpoint:", {
-              error: error.message,
-              stack: error.stack,
-            });
-            res.status(500).json({
-              error: "Internal server error",
-              message: error.message,
-            });
-          }
-        }
-      );
-
-      addonRouter.get(
-        routePath + "cache/clear/rpdb",
-        validateAdminToken,
-        (req, res) => {
-          const { clearRpdbCache } = require("./addon");
-          res.json(clearRpdbCache());
-        }
-      );
-
-      addonRouter.get(
-        routePath + "cache/clear/trakt",
-        validateAdminToken,
-        (req, res) => {
-          const { clearTraktCache } = require("./addon");
-          res.json(clearTraktCache());
-        }
-      );
-
-      addonRouter.get(
-        routePath + "cache/clear/trakt-raw",
-        validateAdminToken,
-        (req, res) => {
-          const { clearTraktRawDataCache } = require("./addon");
-          res.json(clearTraktRawDataCache());
-        }
-      );
-
-      addonRouter.get(
-        routePath + "cache/clear/query-analysis",
-        validateAdminToken,
-        (req, res) => {
-          const { clearQueryAnalysisCache } = require("./addon");
-          res.json(clearQueryAnalysisCache());
-        }
-      );
-
-      // Add endpoint to remove a specific TMDB discover cache item
-      addonRouter.get(
-        routePath + "cache/remove/tmdb-discover",
-        validateAdminToken,
-        (req, res) => {
-          const { removeTmdbDiscoverCacheItem } = require("./addon");
-          const cacheKey = req.query.key;
-          res.json(removeTmdbDiscoverCacheItem(cacheKey));
-        }
-      );
-
-      // Add endpoint to list all TMDB discover cache keys
-      addonRouter.get(
-        routePath + "cache/list/tmdb-discover",
-        validateAdminToken,
-        (req, res) => {
-          const { listTmdbDiscoverCacheKeys } = require("./addon");
-          res.json(listTmdbDiscoverCacheKeys());
-        }
-      );
-
-      addonRouter.get(
-        routePath + "cache/clear/all",
-        validateAdminToken,
-        (req, res) => {
-          const {
-            clearTmdbCache,
-            clearTmdbDetailsCache,
-            clearTmdbDiscoverCache,
-            clearAiCache,
-            clearRpdbCache,
-            clearTraktCache,
-            clearTraktRawDataCache,
-            clearQueryAnalysisCache,
-          } = require("./addon");
-          const tmdbResult = clearTmdbCache();
-          const tmdbDetailsResult = clearTmdbDetailsCache();
-          const tmdbDiscoverResult = clearTmdbDiscoverCache();
-          const aiResult = clearAiCache();
-          const rpdbResult = clearRpdbCache();
-          const traktResult = clearTraktCache();
-          const traktRawResult = clearTraktRawDataCache();
-          const queryAnalysisResult = clearQueryAnalysisCache();
-          res.json({
-            tmdb: tmdbResult,
-            tmdbDetails: tmdbDetailsResult,
-            tmdbDiscover: tmdbDiscoverResult,
-            ai: aiResult,
-            rpdb: rpdbResult,
-            trakt: traktResult,
-            traktRaw: traktRawResult,
-            queryAnalysis: queryAnalysisResult,
-          });
-        }
-      );
-
-      // Add endpoint to manually save caches to files
-      addonRouter.get(
-        routePath + "cache/save",
-        validateAdminToken,
-        async (req, res) => {
-          const result = await saveCachesToFiles();
-          res.json(result);
-        }
-      );
 
       // Add endpoint to set query counter
       addonRouter.post(
